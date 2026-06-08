@@ -170,7 +170,7 @@ Teks Mentah OCR:
 {all_extracted_text}"""
                         proofread_completion = client.chat.completions.create(
                             messages=[{"role": "user", "content": proofread_prompt}],
-                            model="llama-3.3-70b-versatile",
+                            model="llama3-8b-8192",
                             temperature=0.1, 
                         )
                         st.session_state.analysis_results["corrected_text"] = proofread_completion.choices[0].message.content
@@ -179,7 +179,7 @@ Teks Mentah OCR:
                         summary_prompt = f"Tolong jelaskan secara ringkas isi dari dokumen berikut. Buat poin-poin utama agar mudah dipahami:\n\n{st.session_state.analysis_results['corrected_text']}"
                         summary_completion = client.chat.completions.create(
                             messages=[{"role": "user", "content": summary_prompt}],
-                            model="llama-3.3-70b-versatile",
+                            model="llama3-8b-8192",
                             temperature=0.5,
                         )
                         st.session_state.analysis_results["summary"] = summary_completion.choices[0].message.content
