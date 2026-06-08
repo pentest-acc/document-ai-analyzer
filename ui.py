@@ -149,13 +149,13 @@ if uploaded_file is not None:
 
                 if all_extracted_text.strip():
                     with st.spinner("Memproses teks dengan AI..."):
-                        # Prompt diperketat: Wajib jaga bahasa asing dan perbaiki grammarnya saja
+                        # Prompt diperketat: Hapus teks ganda, tapi JANGAN terjemahkan bahasa asing
                         proofread_prompt = f"""Anda adalah sistem pemroses teks otomatis. Tugas Anda HANYA memperbaiki ejaan, tata bahasa, salah ketik (typo), dan spasi dari teks mentah OCR di bawah ini.
 
 ATURAN MUTLAK:
 1. JANGAN tambahkan kalimat basa-basi pengantar atau penutup. Langsung berikan hasil teksnya saja.
-2. PERTAHANKAN BAHASA ASLI SECARA KETAT. Jika kalimat dalam Bahasa Inggris, perbaiki grammar/ejaannya dalam Bahasa Inggris. JANGAN diterjemahkan ke Bahasa Indonesia. Jika ada campuran bahasa, perbaiki masing-masing sesuai bahasa aslinya.
-3. PERTAHANKAN TEKS GANDA. Jika ada kalimat terulang akibat kesalahan baca, BIARKAN SAJA.
+2. PERTAHANKAN BAHASA ASLI SECARA KETAT. Jika kalimat dalam Bahasa Asing (seperti Inggris), perbaiki grammar/ejaannya dalam bahasa tersebut. JANGAN diterjemahkan ke Bahasa Indonesia. Jika ada campuran bahasa, perbaiki masing-masing sesuai bahasa aslinya.
+3. HAPUS TEKS GANDA. Jika ada kata atau kalimat yang terulang/ganda akibat tumpang tindih pembacaan kotak OCR, hapus duplikasinya agar kalimat menjadi padu, logis, dan tidak berulang.
 4. Jangan mengubah format penanda halaman (seperti --- HALAMAN 1 ---).
 
 Teks Mentah OCR:
@@ -219,7 +219,7 @@ Teks Mentah OCR:
                 st.code(res["all_extracted_text"], language='text')
                 
             with tab2:
-                st.caption("Ini adalah teks yang telah dikoreksi tata bahasa dan spasinya oleh LLaMA 3.3 tanpa mengubah bahasa aslinya.")
+                st.caption("Ini adalah teks yang telah dikoreksi tata bahasa dan spasinya, serta dihapus duplikasi teksnya oleh LLaMA 3.3 tanpa mengubah bahasa aslinya.")
                 st.code(res["corrected_text"], language='text')
                 
             st.divider()
