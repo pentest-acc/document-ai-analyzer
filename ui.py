@@ -1,6 +1,9 @@
+import os
+# TRIK BYPASS: Menghapus OpenCV versi GUI yang dibawa oleh YOLO secara paksa
+os.system("pip uninstall -y opencv-python")
+
 import streamlit as st
 import cv2
-import os
 import easyocr
 import numpy as np
 from pathlib import Path
