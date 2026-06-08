@@ -3,7 +3,6 @@ import cv2
 import easyocr
 import numpy as np
 from pathlib import Path
-from huggingface_hub import hf_hub_download
 from ultralytics import YOLO
 from groq import Groq
 from PIL import Image
@@ -14,22 +13,13 @@ import fitz  # PyMuPDF
 # ==========================================
 @st.cache_resource
 def load_models():
-    # 1. Mengambil API Key dari pengaturan rahasia Streamlit Cloud
-    # Jika Anda masih mencoba secara lokal di laptop, gunakan ini sementara:
-    # client = Groq(api_key="gsk_oKeX6Bh1FxAqHCp...") 
-    # Tapi jika sudah siap upload ke GitHub, gunakan ini:
+    # 1. Mengambil API Key
     client = Groq(api_key=st.secrets["GROQ_API_KEY"])
     
     # 2. Inisialisasi EasyOCR
     reader = easyocr.Reader(['id', 'en'])
     
-    # 3. Mengunduh otomatis model YOLOv26 dari Hugging Face
-    DOWNLOAD_PATH = Path("./models")
-    DOWNLOAD_PATH.mkdir(exist_ok=True)
-    
-    # Memilih versi medium (m) sesuai dengan file yang Anda gunakan sebelumnya
-    selected_model_file = "yolo26m_doc_layout.pt" 
-    
+    # 3. Path langsung ke file lokal yang sudah ada di folder /models
     model_path = "./models/yolo26m_doc_layout.pt"
     
     # 4. Inisialisasi Model YOLO
