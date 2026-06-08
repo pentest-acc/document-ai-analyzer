@@ -6,4 +6,3 @@ pymupdf
 opencv-python-headless
 numpy
 Pillow
-huggingface_hub
