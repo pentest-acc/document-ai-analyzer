@@ -51,7 +51,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- SIDEBAR ---
+# --- FITUR BARU: SIDEBAR ---
 st.sidebar.header("⚙️ Pengaturan Deteksi")
 conf_threshold = st.sidebar.slider(
     "Sensitivitas Deteksi (Threshold)", 
@@ -75,22 +75,28 @@ if "current_threshold" not in st.session_state:
 uploaded_file = st.file_uploader("Unggah Dokumen (PDF, JPG, PNG)", type=["pdf", "jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
+    # Reset memori jika pengguna mengunggah file baru
     if st.session_state.current_file != uploaded_file.name:
         st.session_state.current_file = uploaded_file.name
         st.session_state.analysis_started = False
         if "analysis_results" in st.session_state:
             del st.session_state["analysis_results"]
 
+    # Reset memori hasil JIKA slider threshold dirubah pengguna
+    # Ini memicu perhitungan ulang otomatis jika analisis sudah pernah berjalan
     if st.session_state.current_threshold != conf_threshold:
         st.session_state.current_threshold = conf_threshold
         if "analysis_results" in st.session_state:
             del st.session_state["analysis_results"]
 
+    # Tombol Mulai Analisis
     if st.button("Mulai Analisis Dokumen", type="primary"):
         st.session_state.analysis_started = True
 
+    # Jika status memori adalah "MULAI", jalankan program
     if st.session_state.analysis_started:
         
+        # PROSES BERAT HANYA DIJALANKAN JIKA HASIL BELUM ADA DI MEMORI
         if "analysis_results" not in st.session_state:
             with st.spinner('Sedang memproses dokumen...'):
                 images_to_process = []
@@ -110,6 +116,7 @@ if uploaded_file is not None:
                 for idx, img in enumerate(images_to_process):
                     img_cv = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
                     
+                    # --- IMPLEMENTASI THRESHOLD KE YOLO ---
                     results = model(img_cv, conf=conf_threshold)
                     boxes = results[0].boxes
                     
@@ -139,6 +146,7 @@ if uploaded_file is not None:
                         all_extracted_text += f"\n--- HALAMAN {idx + 1} ---\n"
                     all_extracted_text += "\n".join(page_text) + "\n"
 
+                # Siapkan wadah memori
                 st.session_state.analysis_results = {
                     "annotated_images": annotated_images,
                     "extracted_pictures": extracted_pictures,
@@ -147,16 +155,16 @@ if uploaded_file is not None:
                     "summary": None
                 }
 
+                # Jika ada teks, jalankan AI LLaMA dan simpan ke memori
                 if all_extracted_text.strip():
                     with st.spinner("Memproses teks dengan AI..."):
-                        # Prompt diperketat: Wajib jaga bahasa asing dan perbaiki grammarnya saja
-                        proofread_prompt = f"""Anda adalah sistem pemroses teks otomatis. Tugas Anda HANYA memperbaiki ejaan, tata bahasa, salah ketik (typo), dan spasi dari teks mentah OCR di bawah ini.
+                        proofread_prompt = f"""Anda adalah sistem pemroses teks otomatis. Tugas Anda HANYA memperbaiki ejaan, salah ketik (typo), dan spasi dari teks mentah OCR di bawah ini.
 
 ATURAN MUTLAK:
-1. JANGAN tambahkan kalimat basa-basi pengantar atau penutup. Langsung berikan hasil teksnya saja.
-2. PERTAHANKAN BAHASA ASLI SECARA KETAT. Jika kalimat dalam Bahasa Inggris, perbaiki grammar/ejaannya dalam Bahasa Inggris. JANGAN diterjemahkan ke Bahasa Indonesia. Jika ada campuran bahasa, perbaiki masing-masing sesuai bahasa aslinya.
-3. PERTAHANKAN TEKS GANDA. Jika ada kalimat terulang akibat kesalahan baca, BIARKAN SAJA.
-4. Jangan mengubah format penanda halaman (seperti --- HALAMAN 1 ---).
+1. JANGAN tambahkan kalimat basa-basi pengantar atau penutup (seperti "Berikut adalah teks..."). Langsung berikan hasil teksnya saja.
+2. PERTAHANKAN BAHASA ASLI. Jika teks dalam Bahasa Inggris, perbaiki ejaannya dalam Bahasa Inggris. JANGAN diterjemahkan ke Bahasa Indonesia.
+3. PERTAHANKAN TEKS GANDA. Jika ada kalimat atau kata yang terulang akibat proses OCR, BIARKAN SAJA, jangan dihapus.
+4. Jangan mengubah format halaman (seperti --- HALAMAN 1 ---).
 
 Teks Mentah OCR:
 {all_extracted_text}"""
@@ -209,19 +217,8 @@ Teks Mentah OCR:
             st.divider()
 
         if res["all_extracted_text"].strip() and res["corrected_text"]:
-            st.subheader("Hasil Ekstraksi Teks (Perbandingan)")
-            
-            # --- TAMPILAN TAB UNTUK VERSI MENTAH VS PERBAIKAN ---
-            tab1, tab2 = st.tabs(["📝 Teks Mentah (Raw OCR)", "✨ Teks Diperbaiki (AI Corrected)"])
-            
-            with tab1:
-                st.caption("Ini adalah hasil pembacaan asli dari EasyOCR sebelum diproses AI (Berguna untuk analisis akurasi Model YOLO & OCR).")
-                st.code(res["all_extracted_text"], language='text')
-                
-            with tab2:
-                st.caption("Ini adalah teks yang telah dikoreksi tata bahasa dan spasinya oleh LLaMA 3.3 tanpa mengubah bahasa aslinya.")
-                st.code(res["corrected_text"], language='text')
-                
+            st.subheader("Hasil Ekstraksi Teks")
+            st.code(res["corrected_text"], language='text')
             st.divider()
             
             st.subheader("Penjelasan AI berdasarkan Dokumen:")
