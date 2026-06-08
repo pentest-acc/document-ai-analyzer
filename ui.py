@@ -71,7 +71,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Memanggil judul menggunakan HTML agar CSS di atas bisa bekerja
-st.markdown('<div class="main-title">Deteksi Gambar Presisi dengan YOLOv26 dan LLaMA 3.3 untuk Ekstraksi dan Rangkuman Otomatis Isi Dokumen 📄</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-title">Deteksi Struktur Document Dengan YOLOv26 dan Menggunakan LLaMA 3.3 Untuk Ekstraksi dan Rangkuman Isi Dokumen</div>', unsafe_allow_html=True)
 st.write("Unggah dokumen Anda, dan AI akan otomatis menganalisis serta merangkum isinya.")
 
 uploaded_file = st.file_uploader("Unggah Dokumen (PDF, JPG, PNG)", type=["pdf", "jpg", "jpeg", "png"])
