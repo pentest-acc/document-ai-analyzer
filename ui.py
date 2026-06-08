@@ -1,5 +1,5 @@
 import os
-import io # Tambahan untuk fitur unduh gambar
+import io
 import streamlit as st
 import cv2
 import easyocr
@@ -72,7 +72,7 @@ if uploaded_file is not None:
 
             all_extracted_text = ""
             annotated_images = []
-            extracted_pictures = [] # Tempat menyimpan gambar/logo yang dipotong
+            extracted_pictures = []
 
             for idx, img in enumerate(images_to_process):
                 img_cv = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
@@ -90,17 +90,14 @@ if uploaded_file is not None:
                 for box in sorted_boxes:
                     x1, y1, x2, y2 = map(int, box.xyxy[0])
                     cls_id = int(box.cls[0])
-                    cls_name = model.names[cls_id] # Membaca nama label (misal: "Picture", "Title", "Text")
+                    cls_name = model.names[cls_id]
                     
                     cropped = img_cv[y1:y2, x1:x2]
                     
-                    # Jika AI mengenali kotak ini sebagai Gambar/Picture
                     if cls_name == "Picture":
                         pic_rgb = cv2.cvtColor(cropped, cv2.COLOR_BGR2RGB)
                         pil_img = Image.fromarray(pic_rgb)
                         extracted_pictures.append(pil_img)
-                    
-                    # Jika kotak adalah teks
                     else:
                         text_list = reader.readtext(cropped, detail=0)
                         if text_list:
@@ -122,7 +119,7 @@ if uploaded_file is not None:
             st.divider()
 
             # ---------------------------------------------------------
-            # FITUR BARU: TAMPILKAN DAN UNDUH GAMBAR
+            # TAMPILKAN DAN UNDUH GAMBAR
             # ---------------------------------------------------------
             if extracted_pictures:
                 st.subheader("🖼️ Gambar yang Ditemukan di Dokumen")
@@ -131,7 +128,6 @@ if uploaded_file is not None:
                     with pic_cols[i % 4]:
                         st.image(pic, use_container_width=True)
                         
-                        # Mengubah gambar ke format bytes untuk tombol unduh
                         buf = io.BytesIO()
                         pic.save(buf, format="PNG")
                         byte_im = buf.getvalue()
@@ -146,27 +142,34 @@ if uploaded_file is not None:
                 st.divider()
 
             # ---------------------------------------------------------
-            # HASIL TEKS & PENJELASAN AI
+            # HASIL TEKS & PENJELASAN AI DENGAN PROMPT KETAT
             # ---------------------------------------------------------
             if all_extracted_text.strip():
-                # FITUR BARU: AI POST-PROCESSING (Proofreading)
                 st.subheader("Hasil Ekstraksi Teks")
-                with st.spinner("Memperbaiki dan merapikan susunan teks dengan AI..."):
-                    proofread_prompt = f"Anda adalah asisten editor. Perbaiki ejaan, salah ketik, dan susunan kalimat dari hasil ekstraksi teks OCR berikut agar mudah dibaca, rapi, dan logis. JANGAN mengubah makna, menambah, atau mengurangi informasi aslinya. Jika teksnya sudah bagus, biarkan saja:\n\n{all_extracted_text}"
+                with st.spinner("Memproses teks dengan AI..."):
+                    # Prompt baru yang sangat ketat untuk mencegah basa-basi, terjemahan, dan penghapusan teks ganda
+                    proofread_prompt = f"""Anda adalah sistem pemroses teks otomatis. Tugas Anda HANYA memperbaiki ejaan, salah ketik (typo), dan spasi dari teks mentah OCR di bawah ini.
+
+ATURAN MUTLAK:
+1. JANGAN tambahkan kalimat basa-basi pengantar atau penutup (seperti "Berikut adalah teks..."). Langsung berikan hasil teksnya saja.
+2. PERTAHANKAN BAHASA ASLI. Jika teks dalam Bahasa Inggris, perbaiki ejaannya dalam Bahasa Inggris. JANGAN diterjemahkan ke Bahasa Indonesia.
+3. PERTAHANKAN TEKS GANDA. Jika ada kalimat atau kata yang terulang akibat proses OCR, BIARKAN SAJA, jangan dihapus.
+4. Jangan mengubah format halaman (seperti --- HALAMAN 1 ---).
+
+Teks Mentah OCR:
+{all_extracted_text}"""
                     
                     proofread_completion = client.chat.completions.create(
                         messages=[{"role": "user", "content": proofread_prompt}],
                         model="llama-3.3-70b-versatile",
-                        temperature=0.1, # Temperature rendah agar AI tidak mengarang bebas
+                        temperature=0.1, 
                     )
                     corrected_text = proofread_completion.choices[0].message.content
 
-                # Tampilkan teks yang sudah dikoreksi
                 st.code(corrected_text, language='text')
                 
                 st.divider()
                 
-                # Rangkuman Dokumen
                 st.subheader("Penjelasan AI berdasarkan Dokumen:")
                 with st.spinner("Membuat rangkuman dokumen..."):
                     summary_prompt = f"Tolong jelaskan secara ringkas isi dari dokumen berikut. Buat poin-poin utama agar mudah dipahami:\n\n{corrected_text}"
