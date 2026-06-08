@@ -61,7 +61,7 @@ conf_threshold = st.sidebar.slider(
     step=0.05
 )
 
-st.markdown('<div class="main-title">Deteksi Struktur Document Dengan YOLOv26 dan Menggunakan LLaMA 3.3 Untuk Ekstraksi dan Rangkuman Isi Dokumen</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-title">Deteksi Struktur, Buat Ekstraksi dan Ringkasan Document Berbentuk Gambar Atau PDF Dengan YOLOv26 dan Bantuan LLaMA</div>', unsafe_allow_html=True)
 st.write("Unggah dokumen Anda, dan AI akan otomatis menganalisis serta merangkum isinya.")
 
 # Inisialisasi Memori (Session State)
