@@ -8,7 +8,7 @@ from pathlib import Path
 from ultralytics import YOLO
 from groq import Groq
 from PIL import Image
-import fitz  # PyMuPDF
+import fitz
 
 # ==========================================
 # 1. SETUP MODEL & API
@@ -30,75 +30,43 @@ st.set_page_config(page_title="DocAI Analyzer", page_icon="📄", layout="wide")
 
 st.markdown("""
     <style>
-        .main-title {
-            font-size: 2.5rem;
-            font-weight: bold;
-            margin-bottom: 0.5rem;
-        }
+        .main-title { font-size: 2.5rem; font-weight: bold; margin-bottom: 0.5rem; }
         @media (max-width: 768px) {
-            .block-container {
-                padding-top: 5rem !important; 
-            }
-            .main-title {
-                font-size: 1.3rem; 
-                line-height: 1.2;
-                margin-top: 10px;
-            }
-            .stButton > button {
-                width: 100%;
-            }
+            .block-container { padding-top: 5rem !important; }
+            .main-title { font-size: 1.3rem; line-height: 1.2; margin-top: 10px; }
+            .stButton > button { width: 100%; }
         }
     </style>
 """, unsafe_allow_html=True)
 
-# --- FITUR BARU: SIDEBAR ---
 st.sidebar.header("⚙️ Pengaturan Deteksi")
-conf_threshold = st.sidebar.slider(
-    "Sensitivitas Deteksi (Threshold)", 
-    min_value=0.0, 
-    max_value=1.0, 
-    value=0.25, 
-    step=0.05
-)
+conf_threshold = st.sidebar.slider("Sensitivitas Deteksi (Threshold)", 0.0, 1.0, 0.25, 0.05)
 
-st.markdown('<div class="main-title">Deteksi Struktur Document Dengan YOLOv26 dan Menggunakan LLaMA 3.3 Untuk Ekstraksi dan Rangkuman Isi Dokumen</div>', unsafe_allow_html=True)
-st.write("Unggah dokumen Anda, dan AI akan otomatis menganalisis serta merangkum isinya.")
+st.markdown('<div class="main-title">Deteksi Struktur Document Dengan YOLOv26 dan LLaMA 3.1 Untuk Ekstraksi dan Rangkuman</div>', unsafe_allow_html=True)
 
-# Inisialisasi Memori (Session State)
-if "analysis_started" not in st.session_state:
-    st.session_state.analysis_started = False
-if "current_file" not in st.session_state:
-    st.session_state.current_file = None
-if "current_threshold" not in st.session_state:
-    st.session_state.current_threshold = conf_threshold
+if "analysis_started" not in st.session_state: st.session_state.analysis_started = False
+if "current_file" not in st.session_state: st.session_state.current_file = None
+if "current_threshold" not in st.session_state: st.session_state.current_threshold = conf_threshold
 
 uploaded_file = st.file_uploader("Unggah Dokumen (PDF, JPG, PNG)", type=["pdf", "jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
-    # Reset memori jika pengguna mengunggah file baru
     if st.session_state.current_file != uploaded_file.name:
         st.session_state.current_file = uploaded_file.name
         st.session_state.analysis_started = False
-        if "analysis_results" in st.session_state:
-            del st.session_state["analysis_results"]
+        if "analysis_results" in st.session_state: del st.session_state["analysis_results"]
 
-    # Reset memori hasil JIKA slider threshold dirubah pengguna
-    # Ini memicu perhitungan ulang otomatis jika analisis sudah pernah berjalan
     if st.session_state.current_threshold != conf_threshold:
         st.session_state.current_threshold = conf_threshold
-        if "analysis_results" in st.session_state:
-            del st.session_state["analysis_results"]
+        if "analysis_results" in st.session_state: del st.session_state["analysis_results"]
 
-    # Tombol Mulai Analisis
     if st.button("Mulai Analisis Dokumen", type="primary"):
         st.session_state.analysis_started = True
 
-    # Jika status memori adalah "MULAI", jalankan program
     if st.session_state.analysis_started:
-        
-        # PROSES BERAT HANYA DIJALANKAN JIKA HASIL BELUM ADA DI MEMORI
         if "analysis_results" not in st.session_state:
             with st.spinner('Sedang memproses dokumen...'):
+                # (Proses OCR & YOLO tetap sama)
                 images_to_process = []
                 if uploaded_file.name.lower().endswith('.pdf'):
                     doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
@@ -109,119 +77,79 @@ if uploaded_file is not None:
                 else:
                     images_to_process.append(Image.open(uploaded_file))
 
-                all_extracted_text = ""
+                all_text = ""
                 annotated_images = []
                 extracted_pictures = []
 
                 for idx, img in enumerate(images_to_process):
                     img_cv = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
-                    
-                    # --- IMPLEMENTASI THRESHOLD KE YOLO ---
                     results = model(img_cv, conf=conf_threshold)
                     boxes = results[0].boxes
-                    
-                    img_with_boxes = results[0].plot()
-                    annotated_images.append(cv2.cvtColor(img_with_boxes, cv2.COLOR_BGR2RGB))
+                    annotated_images.append(cv2.cvtColor(results[0].plot(), cv2.COLOR_BGR2RGB))
                     
                     sorted_boxes = sorted(boxes, key=lambda b: b.xyxy[0][1].item())
                     page_text = []
-                    
                     for box in sorted_boxes:
                         x1, y1, x2, y2 = map(int, box.xyxy[0])
-                        cls_id = int(box.cls[0])
-                        cls_name = model.names[cls_id]
-                        
-                        cropped = img_cv[y1:y2, x1:x2]
-                        
+                        cls_name = model.names[int(box.cls[0])]
                         if cls_name == "Picture":
-                            pic_rgb = cv2.cvtColor(cropped, cv2.COLOR_BGR2RGB)
-                            pil_img = Image.fromarray(pic_rgb)
-                            extracted_pictures.append(pil_img)
+                            extracted_pictures.append(Image.fromarray(cv2.cvtColor(img_cv[y1:y2, x1:x2], cv2.COLOR_BGR2RGB)))
                         else:
-                            text_list = reader.readtext(cropped, detail=0)
-                            if text_list:
-                                page_text.append(" ".join(text_list))
-                    
-                    if len(images_to_process) > 1:
-                        all_extracted_text += f"\n--- HALAMAN {idx + 1} ---\n"
-                    all_extracted_text += "\n".join(page_text) + "\n"
+                            text = reader.readtext(img_cv[y1:y2, x1:x2], detail=0)
+                            if text: page_text.append(" ".join(text))
+                    all_text += "\n".join(page_text) + "\n"
 
-                # Siapkan wadah memori
-                st.session_state.analysis_results = {
-                    "annotated_images": annotated_images,
-                    "extracted_pictures": extracted_pictures,
-                    "all_extracted_text": all_extracted_text,
-                    "corrected_text": None,
-                    "summary": None
-                }
-
-                # Jika ada teks, jalankan AI LLaMA dan simpan ke memori
-                if all_extracted_text.strip():
-                    with st.spinner("Memproses teks dengan AI..."):
-                        proofread_prompt = f"""Anda adalah sistem pemroses teks otomatis. Tugas Anda HANYA memperbaiki ejaan, salah ketik (typo), dan spasi dari teks mentah OCR di bawah ini.
-
-ATURAN MUTLAK:
-1. JANGAN tambahkan kalimat basa-basi pengantar atau penutup (seperti "Berikut adalah teks..."). Langsung berikan hasil teksnya saja.
-2. PERTAHANKAN BAHASA ASLI. Jika teks dalam Bahasa Inggris, perbaiki ejaannya dalam Bahasa Inggris. JANGAN diterjemahkan ke Bahasa Indonesia.
-3. PERTAHANKAN TEKS GANDA. Jika ada kalimat atau kata yang terulang akibat proses OCR, BIARKAN SAJA, jangan dihapus.
-4. Jangan mengubah format halaman (seperti --- HALAMAN 1 ---).
+                # --- PROSES AI DIBUAT SEKALI PANGGIL ---
+                with st.spinner("AI sedang bekerja (Koreksi + Rangkuman)..."):
+                    prompt = f"""Tugas Anda:
+1. Koreksi teks OCR berikut (hapus duplikasi, perbaiki ejaan).
+2. Jangan terjemahkan bahasa asing (biarkan aslinya).
+3. Buat ringkasan poin utama dari teks tersebut.
 
 Teks Mentah OCR:
-{all_extracted_text}"""
-                        proofread_completion = client.chat.completions.create(
-                            messages=[{"role": "user", "content": proofread_prompt}],
-                            model="llama-3.3-70b-versatile",
-                            temperature=0.1, 
-                        )
-                        st.session_state.analysis_results["corrected_text"] = proofread_completion.choices[0].message.content
+{all_text}
 
-                    with st.spinner("Membuat rangkuman dokumen..."):
-                        summary_prompt = f"Tolong jelaskan secara ringkas isi dari dokumen berikut. Buat poin-poin utama agar mudah dipahami:\n\n{st.session_state.analysis_results['corrected_text']}"
-                        summary_completion = client.chat.completions.create(
-                            messages=[{"role": "user", "content": summary_prompt}],
-                            model="llama-3.3-70b-versatile",
-                            temperature=0.5,
-                        )
-                        st.session_state.analysis_results["summary"] = summary_completion.choices[0].message.content
+Format Output:
+### Teks Diperbaiki:
+[Hasil Koreksi]
 
-        # =========================================================
-        # RENDER TAMPILAN BERDASARKAN MEMORI (SESSION STATE)
-        # =========================================================
-        res = st.session_state.analysis_results
-
-        st.subheader("Visualisasi Deteksi Layout")
-        num_cols = 5
-        cols = st.columns(num_cols)
-        for i, ann_img in enumerate(res["annotated_images"]):
-            cols[i % num_cols].image(ann_img, use_container_width=True)
-        st.divider()
-
-        if res["extracted_pictures"]:
-            st.subheader("🖼️ Gambar yang Ditemukan di Dokumen")
-            pic_cols = st.columns(min(len(res["extracted_pictures"]), 4))
-            for i, pic in enumerate(res["extracted_pictures"]):
-                with pic_cols[i % 4]:
-                    st.image(pic, use_container_width=True)
-                    
-                    buf = io.BytesIO()
-                    pic.save(buf, format="PNG")
-                    byte_im = buf.getvalue()
-                    
-                    st.download_button(
-                        label="Unduh Gambar",
-                        data=byte_im,
-                        file_name=f"ekstraksi_gambar_{i+1}.png",
-                        mime="image/png",
-                        key=f"download_btn_{i}" 
+### Ringkasan AI:
+[Hasil Ringkasan]
+"""
+                    response = client.chat.completions.create(
+                        messages=[{"role": "user", "content": prompt}],
+                        model="llama-3.1-8b-instant", # Model lebih cepat
+                        temperature=0.0
                     )
-            st.divider()
+                    full_response = response.choices[0].message.content
+                    
+                    # Pemisahan output dari AI
+                    parts = full_response.split("### Ringkasan AI:")
+                    corrected = parts[0].replace("### Teks Diperbaiki:", "").strip()
+                    summary = parts[1].strip() if len(parts) > 1 else "Gagal merangkum."
 
-        if res["all_extracted_text"].strip() and res["corrected_text"]:
-            st.subheader("Hasil Ekstraksi Teks")
-            st.code(res["corrected_text"], language='text')
-            st.divider()
-            
-            st.subheader("Penjelasan AI berdasarkan Dokumen:")
-            st.write(res["summary"])
-        else:
-            st.error("Gagal mengekstrak teks. Pastikan dokumen Anda memiliki tulisan yang bisa dibaca.")
+                    st.session_state.analysis_results = {
+                        "annotated_images": annotated_images,
+                        "extracted_pictures": extracted_pictures,
+                        "all_extracted_text": all_text,
+                        "corrected_text": corrected,
+                        "summary": summary
+                    }
+
+        # Render Hasil
+        res = st.session_state.analysis_results
+        st.subheader("Visualisasi Deteksi Layout")
+        st.image(res["annotated_images"], use_container_width=True)
+        
+        if res["extracted_pictures"]:
+            st.subheader("🖼️ Gambar Ditemukan")
+            for i, pic in enumerate(res["extracted_pictures"]):
+                st.image(pic)
+                st.download_button("Unduh Gambar", data=io.BytesIO(), file_name=f"pic_{i}.png")
+
+        st.subheader("Hasil Ekstraksi")
+        tab1, tab2 = st.tabs(["📝 Teks Mentah", "✨ Teks Diperbaiki"])
+        with tab1: st.code(res["all_extracted_text"])
+        with tab2: st.code(res["corrected_text"])
+        st.subheader("Ringkasan AI")
+        st.write(res["summary"])
