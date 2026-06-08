@@ -1,4 +1,5 @@
 import os
+import io # Tambahan untuk fitur unduh gambar
 import streamlit as st
 import cv2
 import easyocr
@@ -14,27 +15,10 @@ import fitz  # PyMuPDF
 # ==========================================
 @st.cache_resource
 def load_models():
-    # 1. Mengambil API Key
     client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-    
-    # 2. Inisialisasi EasyOCR
     reader = easyocr.Reader(['id', 'en'])
-    
-    # 3. Path ke file
     model_path = "./models/yolo26m_doc_layout.pt"
-    
-    # --- DETEKTIF KODE ---
-    # Ini akan memberitahu Anda di layar apakah file benar-benar terbaca oleh server
-    file_exists = os.path.exists(model_path)
-    # if file_exists:
-        # st.success(f"File model ditemukan di server: {os.path.abspath(model_path)}")
-    # else:
-        # st.error(f"File model TIDAK DITEMUKAN di: {os.path.abspath(model_path)}")
-    # ---------------------
-    
-    # 4. Inisialisasi Model YOLO
     model = YOLO(model_path)
-    
     return client, reader, model
 
 client, reader, model = load_models()
@@ -44,19 +28,14 @@ client, reader, model = load_models()
 # ==========================================
 st.set_page_config(page_title="DocAI Analyzer", page_icon="📄", layout="wide")
 
-# SUNTIKAN CSS UNTUK OPTIMASI TAMPILAN MOBILE
 st.markdown("""
     <style>
-        /* Pengaturan default untuk Desktop */
         .main-title {
             font-size: 2.5rem;
             font-weight: bold;
             margin-bottom: 0.5rem;
         }
-        
-        /* Pengaturan khusus untuk layar HP */
         @media (max-width: 768px) {
-            /* Menambah jarak atas agar tidak tertutup header navigasi Streamlit */
             .block-container {
                 padding-top: 5rem !important; 
             }
@@ -72,7 +51,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Memanggil judul menggunakan HTML agar CSS di atas bisa bekerja
 st.markdown('<div class="main-title">Deteksi Struktur Document Dengan YOLOv26 dan Menggunakan LLaMA 3.3 Untuk Ekstraksi dan Rangkuman Isi Dokumen</div>', unsafe_allow_html=True)
 st.write("Unggah dokumen Anda, dan AI akan otomatis menganalisis serta merangkum isinya.")
 
@@ -94,6 +72,7 @@ if uploaded_file is not None:
 
             all_extracted_text = ""
             annotated_images = []
+            extracted_pictures = [] # Tempat menyimpan gambar/logo yang dipotong
 
             for idx, img in enumerate(images_to_process):
                 img_cv = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
@@ -104,27 +83,37 @@ if uploaded_file is not None:
                 img_with_boxes = results[0].plot()
                 annotated_images.append(cv2.cvtColor(img_with_boxes, cv2.COLOR_BGR2RGB))
                 
-                # OCR Extraction
+                # OCR dan Image Extraction
                 sorted_boxes = sorted(boxes, key=lambda b: b.xyxy[0][1].item())
                 page_text = []
+                
                 for box in sorted_boxes:
                     x1, y1, x2, y2 = map(int, box.xyxy[0])
+                    cls_id = int(box.cls[0])
+                    cls_name = model.names[cls_id] # Membaca nama label (misal: "Picture", "Title", "Text")
+                    
                     cropped = img_cv[y1:y2, x1:x2]
-                    text_list = reader.readtext(cropped, detail=0)
-                    if text_list:
-                        page_text.append(" ".join(text_list))
+                    
+                    # Jika AI mengenali kotak ini sebagai Gambar/Picture
+                    if cls_name == "Picture":
+                        pic_rgb = cv2.cvtColor(cropped, cv2.COLOR_BGR2RGB)
+                        pil_img = Image.fromarray(pic_rgb)
+                        extracted_pictures.append(pil_img)
+                    
+                    # Jika kotak adalah teks
+                    else:
+                        text_list = reader.readtext(cropped, detail=0)
+                        if text_list:
+                            page_text.append(" ".join(text_list))
                 
                 if len(images_to_process) > 1:
                     all_extracted_text += f"\n--- HALAMAN {idx + 1} ---\n"
                 all_extracted_text += "\n".join(page_text) + "\n"
 
             # ---------------------------------------------------------
-            # TAMPILAN GALLERY CARD (Kecil ke Samping)
+            # TAMPILAN GALLERY CARD
             # ---------------------------------------------------------
             st.subheader("Visualisasi Deteksi Layout")
-            st.caption("Klik gambar untuk memperbesar")
-            
-            # Tampilkan dalam 5 kolom (Thumbnails)
             num_cols = 5
             cols = st.columns(num_cols)
             for i, ann_img in enumerate(annotated_images):
@@ -133,24 +122,60 @@ if uploaded_file is not None:
             st.divider()
 
             # ---------------------------------------------------------
+            # FITUR BARU: TAMPILKAN DAN UNDUH GAMBAR
+            # ---------------------------------------------------------
+            if extracted_pictures:
+                st.subheader("🖼️ Gambar yang Ditemukan di Dokumen")
+                pic_cols = st.columns(min(len(extracted_pictures), 4))
+                for i, pic in enumerate(extracted_pictures):
+                    with pic_cols[i % 4]:
+                        st.image(pic, use_container_width=True)
+                        
+                        # Mengubah gambar ke format bytes untuk tombol unduh
+                        buf = io.BytesIO()
+                        pic.save(buf, format="PNG")
+                        byte_im = buf.getvalue()
+                        
+                        st.download_button(
+                            label="Unduh Gambar",
+                            data=byte_im,
+                            file_name=f"ekstraksi_gambar_{i+1}.png",
+                            mime="image/png",
+                            key=f"download_btn_{i}"
+                        )
+                st.divider()
+
+            # ---------------------------------------------------------
             # HASIL TEKS & PENJELASAN AI
             # ---------------------------------------------------------
             if all_extracted_text.strip():
-                # Area Teks yang Rapi untuk Disalin
+                # FITUR BARU: AI POST-PROCESSING (Proofreading)
                 st.subheader("Hasil Ekstraksi Teks")
-                st.code(all_extracted_text, language='text')
+                with st.spinner("Memperbaiki dan merapikan susunan teks dengan AI..."):
+                    proofread_prompt = f"Anda adalah asisten editor. Perbaiki ejaan, salah ketik, dan susunan kalimat dari hasil ekstraksi teks OCR berikut agar mudah dibaca, rapi, dan logis. JANGAN mengubah makna, menambah, atau mengurangi informasi aslinya. Jika teksnya sudah bagus, biarkan saja:\n\n{all_extracted_text}"
+                    
+                    proofread_completion = client.chat.completions.create(
+                        messages=[{"role": "user", "content": proofread_prompt}],
+                        model="llama-3.3-70b-versatile",
+                        temperature=0.1, # Temperature rendah agar AI tidak mengarang bebas
+                    )
+                    corrected_text = proofread_completion.choices[0].message.content
+
+                # Tampilkan teks yang sudah dikoreksi
+                st.code(corrected_text, language='text')
                 
                 st.divider()
                 
-                prompt = f"Tolong jelaskan secara ringkas isi dari dokumen berikut. Buat poin-poin utama agar mudah dipahami:\n\n{all_extracted_text}"
-                
-                chat_completion = client.chat.completions.create(
-                    messages=[{"role": "user", "content": prompt}],
-                    model="llama-3.3-70b-versatile",
-                    temperature=0.5,
-                )
-                
-                st.subheader("Penjelasan AI berdasarkan Gambar atau Dokumen yang kamu kirim sebagai berikut:")
-                st.write(chat_completion.choices[0].message.content)
+                # Rangkuman Dokumen
+                st.subheader("Penjelasan AI berdasarkan Dokumen:")
+                with st.spinner("Membuat rangkuman dokumen..."):
+                    summary_prompt = f"Tolong jelaskan secara ringkas isi dari dokumen berikut. Buat poin-poin utama agar mudah dipahami:\n\n{corrected_text}"
+                    
+                    summary_completion = client.chat.completions.create(
+                        messages=[{"role": "user", "content": summary_prompt}],
+                        model="llama-3.3-70b-versatile",
+                        temperature=0.5,
+                    )
+                    st.write(summary_completion.choices[0].message.content)
             else:
-                st.error("Gagal mengekstrak teks.")
+                st.error("Gagal mengekstrak teks. Pastikan dokumen Anda memiliki tulisan yang bisa dibaca.")
