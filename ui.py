@@ -30,12 +30,7 @@ def load_models():
     # Memilih versi medium (m) sesuai dengan file yang Anda gunakan sebelumnya
     selected_model_file = "yolo26m_doc_layout.pt" 
     
-    model_path = hf_hub_download(
-        repo_id="Armaggheddon/yolo26-document-layout",
-        filename=selected_model_file,
-        repo_type="model",
-        local_dir=DOWNLOAD_PATH,
-    )
+    model_path = "./models/yolo26m_doc_layout.pt"
     
     # 4. Inisialisasi Model YOLO
     model = YOLO(model_path)
