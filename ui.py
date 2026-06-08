@@ -26,10 +26,10 @@ def load_models():
     # --- DETEKTIF KODE ---
     # Ini akan memberitahu Anda di layar apakah file benar-benar terbaca oleh server
     file_exists = os.path.exists(model_path)
-    # if file_exists:
-        # st.success(f"File model ditemukan di server: {os.path.abspath(model_path)}")
-    # else:
-        # st.error(f"File model TIDAK DITEMUKAN di: {os.path.abspath(model_path)}")
+    if file_exists:
+        st.success(f"File model ditemukan di server: {os.path.abspath(model_path)}")
+    else:
+        st.error(f"File model TIDAK DITEMUKAN di: {os.path.abspath(model_path)}")
     # ---------------------
     
     # 4. Inisialisasi Model YOLO
