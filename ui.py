@@ -51,26 +51,45 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# --- FITUR BARU: SIDEBAR ---
+st.sidebar.header("⚙️ Pengaturan Deteksi")
+conf_threshold = st.sidebar.slider(
+    "Sensitivitas Deteksi (Threshold)", 
+    min_value=0.0, 
+    max_value=1.0, 
+    value=0.25, 
+    step=0.05
+)
+
 st.markdown('<div class="main-title">Deteksi Struktur Document Dengan YOLOv26 dan Menggunakan LLaMA 3.3 Untuk Ekstraksi dan Rangkuman Isi Dokumen</div>', unsafe_allow_html=True)
 st.write("Unggah dokumen Anda, dan AI akan otomatis menganalisis serta merangkum isinya.")
 
-# Inisialisasi Memori (Session State) agar hasil tidak hilang
+# Inisialisasi Memori (Session State)
 if "analysis_started" not in st.session_state:
     st.session_state.analysis_started = False
 if "current_file" not in st.session_state:
     st.session_state.current_file = None
+if "current_threshold" not in st.session_state:
+    st.session_state.current_threshold = conf_threshold
 
 uploaded_file = st.file_uploader("Unggah Dokumen (PDF, JPG, PNG)", type=["pdf", "jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
-    # Jika pengguna mengunggah file baru, reset memori analisis
+    # Reset memori jika pengguna mengunggah file baru
     if st.session_state.current_file != uploaded_file.name:
         st.session_state.current_file = uploaded_file.name
         st.session_state.analysis_started = False
         if "analysis_results" in st.session_state:
             del st.session_state["analysis_results"]
 
-    # Tombol ini hanya bertugas mengubah status memori menjadi "MULAI"
+    # Reset memori hasil JIKA slider threshold dirubah pengguna
+    # Ini memicu perhitungan ulang otomatis jika analisis sudah pernah berjalan
+    if st.session_state.current_threshold != conf_threshold:
+        st.session_state.current_threshold = conf_threshold
+        if "analysis_results" in st.session_state:
+            del st.session_state["analysis_results"]
+
+    # Tombol Mulai Analisis
     if st.button("Mulai Analisis Dokumen", type="primary"):
         st.session_state.analysis_started = True
 
@@ -96,7 +115,9 @@ if uploaded_file is not None:
 
                 for idx, img in enumerate(images_to_process):
                     img_cv = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
-                    results = model(img_cv)
+                    
+                    # --- IMPLEMENTASI THRESHOLD KE YOLO ---
+                    results = model(img_cv, conf=conf_threshold)
                     boxes = results[0].boxes
                     
                     img_with_boxes = results[0].plot()
@@ -191,7 +212,7 @@ Teks Mentah OCR:
                         data=byte_im,
                         file_name=f"ekstraksi_gambar_{i+1}.png",
                         mime="image/png",
-                        key=f"download_btn_{i}" # Key ini penting agar Streamlit mengenali tombol yang berbeda
+                        key=f"download_btn_{i}" 
                     )
             st.divider()
 
