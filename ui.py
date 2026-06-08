@@ -61,7 +61,7 @@ conf_threshold = st.sidebar.slider(
     step=0.05
 )
 
-st.markdown('<div class="main-title">Deteksi Struktur Document Dengan YOLOv26 dan Menggunakan LLaMA 3.3 Untuk Ekstraksi dan Rangkuman Isi Dokumen</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-title">Deteksi Struktur Document Dengan YOLOv26 dan Menggunakan LLaMA 3.1 Untuk Ekstraksi dan Rangkuman Isi Dokumen</div>', unsafe_allow_html=True)
 st.write("Unggah dokumen Anda, dan AI akan otomatis menganalisis serta merangkum isinya.")
 
 # Inisialisasi Memori (Session State)
@@ -144,37 +144,47 @@ if uploaded_file is not None:
                     "extracted_pictures": extracted_pictures,
                     "all_extracted_text": all_extracted_text,
                     "corrected_text": None,
-                    "summary": None
+                    "summary": None,
+                    "api_error": False # Penanda jika terjadi limit API
                 }
 
                 if all_extracted_text.strip():
-                    with st.spinner("Memproses teks dengan AI..."):
-                        # Prompt diperketat: Hapus teks ganda, tapi JANGAN terjemahkan bahasa asing
-                        proofread_prompt = f"""Anda adalah sistem pemroses teks otomatis. Tugas Anda HANYA memperbaiki ejaan, tata bahasa, salah ketik (typo), dan spasi dari teks mentah OCR di bawah ini.
+                    # --- BLOK TRY-EXCEPT UNTUK MENCEGAH CRASH ---
+                    try:
+                        with st.spinner("Memproses teks dengan AI..."):
+                            system_prompt = """Anda adalah program komputer pengoreksi teks OCR yang kaku dan absolut.
+ATURAN MUTLAK (DILARANG DILANGGAR):
+1. DILARANG BASA-BASI: Jangan gunakan kalimat pembuka atau penutup. Output Anda HARUS langsung teks hasil koreksi saja.
+2. DILARANG MENERJEMAHKAN: Pertahankan bahasa asli dokumen. Jika teks aslinya Bahasa Inggris, perbaiki grammar/typo-nya tetap dalam Bahasa Inggris. JANGAN DITERJEMAHKAN.
+3. HAPUS TEKS GANDA: Jika ada kata atau kalimat yang terulang/ganda akibat tumpang tindih pembacaan kotak OCR, hapus duplikasinya.
+4. Jangan mengubah format penanda halaman (seperti --- HALAMAN 1 ---)."""
 
-ATURAN MUTLAK:
-1. JANGAN tambahkan kalimat basa-basi pengantar atau penutup. Langsung berikan hasil teksnya saja.
-2. PERTAHANKAN BAHASA ASLI SECARA KETAT. Jika kalimat dalam Bahasa Asing (seperti Inggris), perbaiki grammar/ejaannya dalam bahasa tersebut. JANGAN diterjemahkan ke Bahasa Indonesia. Jika ada campuran bahasa, perbaiki masing-masing sesuai bahasa aslinya.
-3. HAPUS TEKS GANDA. Jika ada kata atau kalimat yang terulang/ganda akibat tumpang tindih pembacaan kotak OCR, hapus duplikasinya agar kalimat menjadi padu, logis, dan tidak berulang.
-4. Jangan mengubah format penanda halaman (seperti --- HALAMAN 1 ---).
+                            user_prompt = f"Koreksi teks mentah OCR ini tanpa melanggar aturan sistem:\n\n{all_extracted_text}"
 
-Teks Mentah OCR:
-{all_extracted_text}"""
-                        proofread_completion = client.chat.completions.create(
-                            messages=[{"role": "user", "content": proofread_prompt}],
-                            model="llama-3.3-70b-versatile",
-                            temperature=0.1, 
-                        )
-                        st.session_state.analysis_results["corrected_text"] = proofread_completion.choices[0].message.content
+                            # MENGGUNAKAN MODEL YANG LEBIH RINGAN AGAR TIDAK TERKENA LIMIT
+                            proofread_completion = client.chat.completions.create(
+                                messages=[
+                                    {"role": "system", "content": system_prompt},
+                                    {"role": "user", "content": user_prompt}
+                                ],
+                                model="llama3-8b-8192", 
+                                temperature=0.0, 
+                            )
+                            st.session_state.analysis_results["corrected_text"] = proofread_completion.choices[0].message.content
 
-                    with st.spinner("Membuat rangkuman dokumen..."):
-                        summary_prompt = f"Tolong jelaskan secara ringkas isi dari dokumen berikut. Buat poin-poin utama agar mudah dipahami:\n\n{st.session_state.analysis_results['corrected_text']}"
-                        summary_completion = client.chat.completions.create(
-                            messages=[{"role": "user", "content": summary_prompt}],
-                            model="llama-3.3-70b-versatile",
-                            temperature=0.5,
-                        )
-                        st.session_state.analysis_results["summary"] = summary_completion.choices[0].message.content
+                        with st.spinner("Membuat rangkuman dokumen..."):
+                            summary_prompt = f"Tolong jelaskan secara ringkas isi dari dokumen berikut. Buat poin-poin utama agar mudah dipahami:\n\n{st.session_state.analysis_results['corrected_text']}"
+                            summary_completion = client.chat.completions.create(
+                                messages=[{"role": "user", "content": summary_prompt}],
+                                model="llama3-8b-8192",
+                                temperature=0.5,
+                            )
+                            st.session_state.analysis_results["summary"] = summary_completion.choices[0].message.content
+                    
+                    except Exception as e:
+                        # JIKA TERKENA LIMIT, TAMPILKAN PESAN ERROR YANG RAPI, BUKAN LAYAR MERAH
+                        st.session_state.analysis_results["api_error"] = True
+                        st.error("⚠️ Kuota API AI sedang penuh (Rate Limit). Dokumen berhasil dipindai, tetapi koreksi AI dan rangkuman tidak dapat ditampilkan saat ini. Silakan tunggu 1-2 menit dan klik 'Mulai Analisis' lagi.")
 
         # =========================================================
         # RENDER TAMPILAN BERDASARKAN MEMORI (SESSION STATE)
@@ -208,23 +218,27 @@ Teks Mentah OCR:
                     )
             st.divider()
 
-        if res["all_extracted_text"].strip() and res["corrected_text"]:
+        # Menampilkan hasil teks JIKA tidak ada error API
+        if res["all_extracted_text"].strip():
             st.subheader("Hasil Ekstraksi Teks (Perbandingan)")
             
-            # --- TAMPILAN TAB UNTUK VERSI MENTAH VS PERBAIKAN ---
-            tab1, tab2 = st.tabs(["📝 Teks Mentah (Raw OCR)", "✨ Teks Diperbaiki (AI Corrected)"])
-            
-            with tab1:
-                st.caption("Ini adalah hasil pembacaan asli dari EasyOCR sebelum diproses AI (Berguna untuk analisis akurasi Model YOLO & OCR).")
+            if res.get("api_error"):
+                st.warning("Menampilkan versi Mentah (Raw). Koreksi AI terhenti karena batas limit server.")
                 st.code(res["all_extracted_text"], language='text')
+            elif res["corrected_text"]:
+                tab1, tab2 = st.tabs(["📝 Teks Mentah (Raw OCR)", "✨ Teks Diperbaiki (AI Corrected)"])
                 
-            with tab2:
-                st.caption("Ini adalah teks yang telah dikoreksi tata bahasa dan spasinya, serta dihapus duplikasi teksnya oleh LLaMA 3.3 tanpa mengubah bahasa aslinya.")
-                st.code(res["corrected_text"], language='text')
+                with tab1:
+                    st.caption("Ini adalah hasil pembacaan asli dari EasyOCR sebelum diproses AI (Berguna untuk analisis akurasi Model YOLO & OCR).")
+                    st.code(res["all_extracted_text"], language='text')
+                    
+                with tab2:
+                    st.caption("Ini adalah teks yang telah dikoreksi tata bahasa dan spasinya, serta dihapus duplikasi teksnya oleh LLaMA tanpa mengubah bahasa aslinya.")
+                    st.code(res["corrected_text"], language='text')
                 
-            st.divider()
-            
-            st.subheader("Penjelasan AI berdasarkan Dokumen:")
-            st.write(res["summary"])
+                st.divider()
+                st.subheader("Penjelasan AI berdasarkan Dokumen:")
+                st.write(res["summary"])
         else:
-            st.error("Gagal mengekstrak teks. Pastikan dokumen Anda memiliki tulisan yang bisa dibaca.")
+            if not res.get("api_error"):
+                st.error("Gagal mengekstrak teks. Pastikan dokumen Anda memiliki tulisan yang bisa dibaca.")
