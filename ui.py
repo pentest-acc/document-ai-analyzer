@@ -1,9 +1,3 @@
-import os
-import sys
-
-# TRIK BYPASS FINAL: Memaksa penghapusan OpenCV GUI di dalam Virtual Environment Streamlit
-os.system(f"{sys.executable} -m pip uninstall -y opencv-python opencv-contrib-python")
-
 import streamlit as st
 import cv2
 import easyocr
