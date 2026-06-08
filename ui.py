@@ -149,21 +149,26 @@ if uploaded_file is not None:
 
                 if all_extracted_text.strip():
                     with st.spinner("Memproses teks dengan AI..."):
-                        # Prompt diperketat: Hapus teks ganda, tapi JANGAN terjemahkan bahasa asing
-                        proofread_prompt = f"""Anda adalah sistem pemroses teks otomatis. Tugas Anda HANYA memperbaiki ejaan, tata bahasa, salah ketik (typo), dan spasi dari teks mentah OCR di bawah ini.
+                        
+                        # --- PERUBAHAN PENTING PADA PROMPT ---
+                        # Memisahkan perintah menjadi System Prompt (Aturan Absolut) dan User Prompt
+                        system_prompt = """Anda adalah program komputer pengoreksi teks OCR yang kaku dan absolut.
+ATURAN MUTLAK (DILARANG DILANGGAR):
+1. DILARANG BASA-BASI: Jangan gunakan kalimat pembuka (seperti "Berikut adalah teksnya") atau penutup. Output Anda HARUS langsung teks hasil koreksi saja.
+2. DILARANG MENERJEMAHKAN: Pertahankan bahasa asli dokumen. Jika teks aslinya Bahasa Inggris, perbaiki grammar/typo-nya tetap dalam Bahasa Inggris. JANGAN DITERJEMAHKAN ke Bahasa Indonesia.
+3. BIARKAN TEKS GANDA: Jika ada kalimat/kata yang terulang (duplikat), BIARKAN SAJA, JANGAN DIHAPUS. Ini adalah bukti otentik hasil pembacaan mesin yang harus dipertahankan.
+4. JANGAN UBAH FORMAT HALAMAN: Pertahankan penanda seperti "--- HALAMAN 1 ---".
+Tugas Anda HANYA memperbaiki typo/salah eja dan merapikan spasi."""
 
-ATURAN MUTLAK:
-1. JANGAN tambahkan kalimat basa-basi pengantar atau penutup. Langsung berikan hasil teksnya saja.
-2. PERTAHANKAN BAHASA ASLI SECARA KETAT. Jika kalimat dalam Bahasa Asing (seperti Inggris), perbaiki grammar/ejaannya dalam bahasa tersebut. JANGAN diterjemahkan ke Bahasa Indonesia. Jika ada campuran bahasa, perbaiki masing-masing sesuai bahasa aslinya.
-3. HAPUS TEKS GANDA. Jika ada kata atau kalimat yang terulang/ganda akibat tumpang tindih pembacaan kotak OCR, hapus duplikasinya agar kalimat menjadi padu, logis, dan tidak berulang.
-4. Jangan mengubah format penanda halaman (seperti --- HALAMAN 1 ---).
+                        user_prompt = f"Koreksi teks mentah OCR ini tanpa melanggar aturan sistem:\n\n{all_extracted_text}"
 
-Teks Mentah OCR:
-{all_extracted_text}"""
                         proofread_completion = client.chat.completions.create(
-                            messages=[{"role": "user", "content": proofread_prompt}],
+                            messages=[
+                                {"role": "system", "content": system_prompt},
+                                {"role": "user", "content": user_prompt}
+                            ],
                             model="llama-3.3-70b-versatile",
-                            temperature=0.1, 
+                            temperature=0.0, # Temperature diubah menjadi 0.0 agar AI bekerja 100% secara logika dan tidak "kreatif"
                         )
                         st.session_state.analysis_results["corrected_text"] = proofread_completion.choices[0].message.content
 
@@ -211,7 +216,6 @@ Teks Mentah OCR:
         if res["all_extracted_text"].strip() and res["corrected_text"]:
             st.subheader("Hasil Ekstraksi Teks (Perbandingan)")
             
-            # --- TAMPILAN TAB UNTUK VERSI MENTAH VS PERBAIKAN ---
             tab1, tab2 = st.tabs(["📝 Teks Mentah (Raw OCR)", "✨ Teks Diperbaiki (AI Corrected)"])
             
             with tab1:
@@ -219,7 +223,7 @@ Teks Mentah OCR:
                 st.code(res["all_extracted_text"], language='text')
                 
             with tab2:
-                st.caption("Ini adalah teks yang telah dikoreksi tata bahasa dan spasinya, serta dihapus duplikasi teksnya oleh LLaMA 3.3 tanpa mengubah bahasa aslinya.")
+                st.caption("Ini adalah teks yang telah dikoreksi tata bahasa dan spasinya oleh LLaMA 3.3. Teks ganda dan bahasa asli dipertahankan sebagai bukti deteksi.")
                 st.code(res["corrected_text"], language='text')
                 
             st.divider()
