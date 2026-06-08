@@ -54,17 +54,19 @@ st.markdown("""
             margin-bottom: 0.5rem;
         }
         
-        /* Pengaturan khusus jika dibuka di layar HP (lebar maksimal 768px) */
+        /* Pengaturan khusus untuk layar HP */
         @media (max-width: 768px) {
+            /* Menambah jarak atas agar tidak tertutup header navigasi Streamlit */
+            .block-container {
+                padding-top: 5rem !important; 
+            }
             .main-title {
-                font-size: 1.5rem; /* Judul mengecil di HP agar tidak memakan layar */
+                font-size: 1.3rem; 
                 line-height: 1.2;
+                margin-top: 10px;
             }
             .stButton > button {
-                width: 100%; /* Tombol Analisis menjadi full-width di HP agar mudah dipencet jempol */
-            }
-            .block-container {
-                padding-top: 2rem; /* Mengurangi jarak kosong di bagian atas layar HP */
+                width: 100%;
             }
         }
     </style>
