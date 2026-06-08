@@ -1,0 +1,9 @@
+streamlit
+ultralytics
+easyocr
+groq
+pymupdf
+opencv-python-headless
+numpy
+Pillow
+huggingface_hub
