@@ -1,6 +1,6 @@
 import os
 # =========================================================================
-# ANTI-CRASH PADDLEOCR WINDOWS (HARUS BERADA DI PALING ATAS)
+# ANTI-CRASH PADDLEOCR WINDOWS & LINUX (HARUS BERADA DI PALING ATAS)
 # =========================================================================
 os.environ["FLAGS_use_mkldnn"] = "0"
 os.environ["FLAGS_enable_pir_api"] = "0"
@@ -17,21 +17,22 @@ import fitz  # PyMuPDF
 from paddleocr import PaddleOCR
 
 # ==========================================
-# 1. SETUP MODEL & API (VERSI GITHUB SECURE)
+# 1. SETUP MODEL & API (VERSI PRODUCTION GITHUB)
 # ==========================================
 @st.cache_resource
 def load_models():
-    # Mengambil API Key dari brankas rahasia Streamlit, BUKAN dari teks mentah!
+    # Ambil kunci dari Brankas Rahasia Streamlit Cloud (Aman dari Hacker)
     client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+    # show_log=False untuk membungkam log berisik di terminal server
     reader = PaddleOCR(use_angle_cls=False, lang='en', show_log=False)
-    model_path = "yolo26m_doc_layout.pt" 
+    model_path = "./models/yolo26m_doc_layout.pt" 
     model = YOLO(model_path)
     return client, reader, model
 
 client, reader, model = load_models()
 
 # ==========================================
-# 2. TAMPILAN ANTARMUKA (UI) PREMIUM
+# 2. TAMPILAN ANTARMUKA (UI) PREMIUM GLASSMORPHISM
 # ==========================================
 st.set_page_config(page_title="DocAI Project", page_icon="⚡", layout="wide")
 
@@ -95,56 +96,4 @@ st.markdown("""
 
         /* Kotak Unggah File (Dropzone) */
         [data-testid="stFileUploadDropzone"] {
-            background: rgba(255, 255, 255, 0.03);
-            border: 2px dashed rgba(79, 172, 254, 0.5);
-            border-radius: 20px;
-            padding: 2rem;
-            transition: all 0.3s ease;
-        }
-        [data-testid="stFileUploadDropzone"]:hover {
-            background: rgba(255, 255, 255, 0.08);
-            border-color: #00f2fe;
-        }
-
-        h1, h2, h3, h4, h5, h6, p, span, label {
-            color: #ffffff;
-        }
-
-        [data-testid="stVerticalBlockBorderWrapper"] {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.1) !important;
-            border-radius: 15px !important;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            padding: 10px;
-        }
-        [data-testid="stVerticalBlockBorderWrapper"]:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 20px rgba(0, 242, 254, 0.15);
-            border-color: rgba(0, 242, 254, 0.4) !important;
-        }
-        
-        [data-testid="stVerticalBlockBorderWrapper"] img {
-            max-height: 180px !important; 
-            object-fit: contain !important; 
-            border-radius: 8px;
-            margin-bottom: 10px;
-        }
-
-        [data-testid="stImage"] img {
-            max-height: 400px; 
-            object-fit: contain;
-            border-radius: 10px;
-        }
-
-        @media (max-width: 768px) {
-            .block-container { padding-top: 4rem !important; }
-            .premium-title { font-size: 2rem; line-height: 1.2; }
-            [data-testid="stVerticalBlockBorderWrapper"] img {
-                max-height: 150px !important;
-            }
-        }
-    </style>
-""", unsafe_allow_html=True)
-
-# INISIALISASI DATABASE CACHE RIWAYAT SESI
-if "analysis_
+            background: rgba(255, 25
