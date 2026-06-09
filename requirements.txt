@@ -1,6 +1,7 @@
 streamlit
 ultralytics
-easyocr
+paddleocr
+paddlepaddle
 groq
 pymupdf
 opencv-python-headless
